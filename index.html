@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Valhalla Combatives Attendance</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 { color: #e53935; }
+    input, button {
+      width: 100%;
+      max-width: 360px;
+      box-sizing: border-box;
+      padding: 14px;
+      margin: 8px 0;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    #reader { max-width: 400px; margin: 20px auto; }
+    #message { margin: 18px 0; font-weight: bold; }
+    button {
+      background: #e53935;
+      color: white;
+      border: 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>VALHALLA COMBATIVES</h1>
+  <h2>QR Attendance Scanner</h2>
+
+  <input id="pin" type="password" placeholder="Enter staff PIN" autocomplete="off">
+  <button onclick="startScanner()">Start Camera</button>
+
+  <div id="reader"></div>
+  <div id="message">Enter your staff PIN, then start the camera.</div>
+
+  <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxzKls5I3XnB66k42N5bGTfNsuM33NHf5mDT7tugWAl85rVfEu51eX2YGjlWxw4_gFIxA/exec";
+    let scanner;
+    let busy = false;
+
+    function showMessage(text) {
+      document.getElementById("message").textContent = text;
+    }
+
+    async function startScanner() {
+      if (!document.getElementById("pin").value.trim()) {
+        showMessage("Please enter your staff PIN.");
+        return;
+      }
+
+      try {
+        scanner = new Html5Qrcode("reader");
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onScan,
+          () => {}
+        );
+        showMessage("Camera ready. Scan a student's QR code.");
+      } catch (error) {
+        showMessage("Camera error: " + error);
+      }
+    }
+
+    function onScan(studentId) {
+      if (busy) return;
+      busy = true;
+      scanner.pause(true);
+      showMessage("Recording attendance...");
+
+      const callbackName = "attendanceCallback";
+
+      window[callbackName] = function(result) {
+        showMessage(result.message || "Request completed.");
+
+        setTimeout(() => {
+          busy = false;
+          if (scanner) scanner.resume();
+        }, 2500);
+
+        delete window[callbackName];
+      };
+
+      const url = new URL(WEB_APP_URL);
+      url.searchParams.set("action", "attendance");
+      url.searchParams.set("studentId", studentId);
+      url.searchParams.set("pin", document.getElementById("pin").value.trim());
+      url.searchParams.set("callback", callbackName);
+
+      const script = document.createElement("script");
+      script.src = url.toString();
+      script.onerror = function() {
+        showMessage("Connection failed. Check the Apps Script URL and deployment.");
+        busy = false;
+        if (scanner) scanner.resume();
+        script.remove();
+      };
+      script.onload = () => script.remove();
+      document.body.appendChild(script);
+    }
+  </script>
+</body>
+</html>
